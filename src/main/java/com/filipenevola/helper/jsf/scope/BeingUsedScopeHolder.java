@@ -175,6 +175,11 @@ public class BeingUsedScopeHolder {
 	}
 }
 
+/**
+ * @author Filipe Névola
+ * 
+ *         Key for hold objects on this Scope
+ */
 class UsingScopeKey {
 	private String sessionId;
 	private String beanName;

@@ -42,7 +42,6 @@ public class BeingUsedScope implements Scope {
 			return null;
 		}
 		String viewId = ctx.getViewRoot().getViewId();
-		// Logger.debug("viewId = " + viewId);
 		HttpSession session = (HttpSession) ctx.getExternalContext()
 				.getSession(false);
 
@@ -52,9 +51,6 @@ public class BeingUsedScope implements Scope {
 		String sessionId = session.getId();
 
 		if (BeingUsedScopeHolder.beanOnScope(beanName, sessionId)) {
-			// Logger.debug("found bean [" + beanName +
-			// "] on scope - current viewId = " + viewId);
-			// BeingUsedScopeHolder.logScopeContent();
 			return BeingUsedScopeHolder.getBeanFromScope(beanName, sessionId,
 					viewId);
 		} else {
