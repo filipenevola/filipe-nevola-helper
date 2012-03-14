@@ -25,6 +25,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import javax.servlet.http.HttpSession;
+
 import com.filipenevola.helper.log.Logger;
 
 /**
@@ -34,26 +36,24 @@ import com.filipenevola.helper.log.Logger;
  */
 public class BeingUsedScopeHolder {
 
-	private static Map<UsingScopeKey, Object> holder = Collections
-			.synchronizedMap(new HashMap<UsingScopeKey, Object>());
-	private static Map<UsingScopeKey, String> views = Collections
-			.synchronizedMap(new HashMap<UsingScopeKey, String>());
+	private static final String KEY_HOLDER = "beingUsedScopeHolder";
+	private static final String KEY_VIEWS = "beingUsedScopeViews";
 
-	public static void putBeanOnScope(Object bean, String beanName,
-			String sessionId, String viewId) {
-		UsingScopeKey key = new UsingScopeKey(sessionId, beanName);
-		holder.put(key, bean);
-		beanBeingUsedOnViewId(viewId, key);
+	public static void putBeanOnScope(HttpSession session, Object bean,
+			String beanName, String viewId) {
+		UsingScopeKey key = new UsingScopeKey(session.getId(), beanName);
+		getHolder(session).put(key, bean);
+		beanBeingUsedOnViewId(session, viewId, key);
 	}
 
-	private static void removeDetachedBeans(String sessionId, String viewId) {
-		for (Iterator<Map.Entry<UsingScopeKey, Object>> iterator = holder
-				.entrySet().iterator(); iterator.hasNext();) {
+	private static void removeDetachedBeans(HttpSession session, String viewId) {
+		for (Iterator<Map.Entry<UsingScopeKey, Object>> iterator = getHolder(
+				session).entrySet().iterator(); iterator.hasNext();) {
 			Map.Entry<UsingScopeKey, Object> entry = iterator.next();
 			UsingScopeKey key = entry.getKey();
-			if (key.getSessionId().equals(sessionId)) {
-				boolean detached = !views.containsKey(key)
-						|| !views.get(key).equals(viewId);
+			if (key.getSessionId().equals(session.getId())) {
+				boolean detached = !getViews(session).containsKey(key)
+						|| !getViews(session).get(key).equals(viewId);
 
 				if (detached) {
 					iterator.remove();
@@ -66,46 +66,49 @@ public class BeingUsedScopeHolder {
 		}
 	}
 
-	public static Boolean beanOnScope(String beanName, String sessionId) {
-		UsingScopeKey key = new UsingScopeKey(sessionId, beanName);
-		Boolean contains = holder.containsKey(key);
+	public static Boolean beanOnScope(HttpSession session, String beanName) {
+		UsingScopeKey key = new UsingScopeKey(session.getId(), beanName);
+		Boolean contains = getHolder(session).containsKey(key);
 
 		return contains;
 	}
 
-	public static Object getBeanFromScope(String beanName, String sessionId,
+	public static Object getBeanFromScope(HttpSession session, String beanName,
 			String viewId) {
-		UsingScopeKey key = new UsingScopeKey(sessionId, beanName);
-		beanBeingUsedOnViewId(viewId, key);
-		return holder.get(key);
+		UsingScopeKey key = new UsingScopeKey(session.getId(), beanName);
+		beanBeingUsedOnViewId(session, viewId, key);
+		return getHolder(session).get(key);
 	}
 
-	private static void beanBeingUsedOnViewId(String viewId, UsingScopeKey key) {
+	private static void beanBeingUsedOnViewId(HttpSession session,
+			String viewId, UsingScopeKey key) {
 		Logger.debug("BeginUsed - " + key + " = " + viewId);
-		views.put(key, viewId);
+		getViews(session).put(key, viewId);
 	}
 
-	public static Object removeBeanFromScope(String beanName, String sessionId) {
-		UsingScopeKey key = new UsingScopeKey(sessionId, beanName);
-		return holder.remove(key);
+	public static Object removeBeanFromScope(HttpSession session,
+			String beanName) {
+		UsingScopeKey key = new UsingScopeKey(session.getId(), beanName);
+		return getHolder(session).remove(key);
 	}
 
-	public static void logScopeContent() {
+	public static void logScopeContent(HttpSession session) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("Beans = [ ");
-		for (UsingScopeKey key : holder.keySet()) {
+		for (UsingScopeKey key : getHolder(session).keySet()) {
 			sb.append(key);
 			sb.append(" ");
 		}
 		sb.append("]");
 		sb.append(" - Views = ");
-		sb.append(views.values());
+		sb.append(getViews(session).values());
 		Logger.debug(sb.toString());
 	}
 
-	public static void logDetailScopeContentBySession(String place) {
+	public static void logDetailScopeContentBySession(HttpSession session,
+			String place) {
 		Map<String, Map<String, List<String>>> map = new HashMap<String, Map<String, List<String>>>();
-		for (UsingScopeKey key : holder.keySet()) {
+		for (UsingScopeKey key : getHolder(session).keySet()) {
 			if (!map.containsKey(key.getSessionId())) {
 				map.put(key.getSessionId(), new HashMap<String, List<String>>());
 			}
@@ -114,9 +117,9 @@ public class BeingUsedScopeHolder {
 						new ArrayList<String>());
 			}
 			map.get(key.getSessionId()).get("beans")
-					.add(holder.get(key).toString());
+					.add(getHolder(session).get(key).toString());
 		}
-		for (UsingScopeKey key : views.keySet()) {
+		for (UsingScopeKey key : getViews(session).keySet()) {
 			if (!map.containsKey(key.getSessionId())) {
 				map.put(key.getSessionId(), new HashMap<String, List<String>>());
 			}
@@ -124,7 +127,8 @@ public class BeingUsedScopeHolder {
 				map.get(key.getSessionId()).put("views",
 						new ArrayList<String>());
 			}
-			map.get(key.getSessionId()).get("views").add(views.get(key));
+			map.get(key.getSessionId()).get("views")
+					.add(getViews(session).get(key));
 		}
 
 		StringBuilder sb = new StringBuilder();
@@ -154,21 +158,40 @@ public class BeingUsedScopeHolder {
 		Logger.debug(sb.toString());
 	}
 
-	public static void updateViewsAndRemoveDetachedBeans(String sessionId,
+	@SuppressWarnings("unchecked")
+	private static Map<UsingScopeKey, String> getViews(HttpSession session) {
+		if (session.getAttribute(KEY_VIEWS) == null) {
+			session.setAttribute(KEY_VIEWS, Collections
+					.synchronizedMap(new HashMap<UsingScopeKey, String>()));
+		}
+		return (Map<UsingScopeKey, String>) session.getAttribute(KEY_VIEWS);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<UsingScopeKey, Object> getHolder(HttpSession session) {
+		if (session.getAttribute(KEY_HOLDER) == null) {
+			session.setAttribute(KEY_HOLDER, Collections
+					.synchronizedMap(new HashMap<UsingScopeKey, Object>()));
+		}
+		return (Map<UsingScopeKey, Object>) session.getAttribute(KEY_HOLDER);
+	}
+
+	public static void updateViewsAndRemoveDetachedBeans(HttpSession session,
 			String viewId) {
 
-		removeDetachedBeans(sessionId, viewId);
-		removeViewsFromThisSession(sessionId);
-		logDetailScopeContentBySession("After updateViewsAndRemoveDetachedBeans");
+		removeDetachedBeans(session, viewId);
+		removeViewsFromThisSession(session);
+		logDetailScopeContentBySession(session,
+				"After updateViewsAndRemoveDetachedBeans");
 
 	}
 
-	private static void removeViewsFromThisSession(String sessionId) {
-		for (Iterator<Map.Entry<UsingScopeKey, String>> iterator = views
-				.entrySet().iterator(); iterator.hasNext();) {
+	private static void removeViewsFromThisSession(HttpSession session) {
+		for (Iterator<Map.Entry<UsingScopeKey, String>> iterator = getViews(
+				session).entrySet().iterator(); iterator.hasNext();) {
 			Map.Entry<UsingScopeKey, String> entry = iterator.next();
 			UsingScopeKey key = entry.getKey();
-			if (key.getSessionId().equals(sessionId)) {
+			if (key.getSessionId().equals(session.getId())) {
 				iterator.remove();
 			}
 		}

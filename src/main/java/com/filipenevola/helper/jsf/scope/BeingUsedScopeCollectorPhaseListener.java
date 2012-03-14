@@ -54,10 +54,7 @@ public class BeingUsedScopeCollectorPhaseListener implements PhaseListener {
 		if (session == null) {
 			return;
 		}
-		String sessionId = session.getId();
-
-		BeingUsedScopeHolder.updateViewsAndRemoveDetachedBeans(sessionId,
-				viewId);
+		BeingUsedScopeHolder.updateViewsAndRemoveDetachedBeans(session, viewId);
 	}
 
 	public void beforePhase(PhaseEvent event) {

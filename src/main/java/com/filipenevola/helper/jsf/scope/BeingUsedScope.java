@@ -48,20 +48,18 @@ public class BeingUsedScope implements Scope {
 		if (session == null) {
 			return null;
 		}
-		String sessionId = session.getId();
-
-		if (BeingUsedScopeHolder.beanOnScope(beanName, sessionId)) {
-			return BeingUsedScopeHolder.getBeanFromScope(beanName, sessionId,
+		if (BeingUsedScopeHolder.beanOnScope(session, beanName)) {
+			return BeingUsedScopeHolder.getBeanFromScope(session, beanName,
 					viewId);
 		} else {
 			Object object = objectFactory.getObject();
-			BeingUsedScopeHolder.putBeanOnScope(object, beanName, sessionId,
+			BeingUsedScopeHolder.putBeanOnScope(session, object, beanName,
 					viewId);
 
 			Logger.debug("-->PUT bean [" + object
 					+ "] on scope - current viewId = " + viewId);
-			BeingUsedScopeHolder
-					.logDetailScopeContentBySession("After put a new bean");
+			BeingUsedScopeHolder.logDetailScopeContentBySession(session,
+					"After put a new bean");
 			return object;
 		}
 	}
@@ -76,13 +74,12 @@ public class BeingUsedScope implements Scope {
 		if (session == null) {
 			return null;
 		}
-		String sessionId = session.getId();
-		Object obj = BeingUsedScopeHolder.removeBeanFromScope(beanName,
-				sessionId);
+		Object obj = BeingUsedScopeHolder
+				.removeBeanFromScope(session, beanName);
 
 		Logger.debug("<--REMOVED bean [" + beanName + "] from scope");
-		BeingUsedScopeHolder
-				.logDetailScopeContentBySession("After removed a bean");
+		BeingUsedScopeHolder.logDetailScopeContentBySession(session,
+				"After removed a bean");
 
 		return obj;
 	}
